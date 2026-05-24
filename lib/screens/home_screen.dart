@@ -172,16 +172,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _shareDish(Dish dish) async {
-    final text = dish.toShareText();
-    if (dish.imagePath != null && File(dish.imagePath!).existsSync()) {
-      await Share.shareXFiles(
-        [XFile(dish.imagePath!)],
-        text: text,
-        subject: 'Блюдо: ${dish.name}',
-      );
-    } else {
-      await Share.share(text, subject: 'Блюдо: ${dish.name}');
-    }
+    // Открываем корзину для одного блюда, чтобы перед отправкой можно было
+    // снять лишние ингредиенты или добавить свои продукты.
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CartScreen(dishes: [dish])),
+    );
   }
 
   Future<void> _exportAll() async {

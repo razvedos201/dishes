@@ -160,4 +160,53 @@ class StorageService {
     }
     return [...current, ...imported];
   }
+
+  // === Импорт/экспорт каталога продуктов ===
+
+  Future<String> exportProductsToJsonString(List<Product> products) async {
+    final data = products.map((p) => p.toJson()).toList();
+    return const JsonEncoder.withIndent('  ').convert(data);
+  }
+
+  Future<File> writeProductsExportFile(List<Product> products) async {
+    final dir = await getTemporaryDirectory();
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final file = File(p.join(dir.path, 'products_export_$ts.json'));
+    final jsonStr = await exportProductsToJsonString(products);
+    await file.writeAsString(jsonStr);
+    return file;
+  }
+
+  // Импорт продуктов из JSON-строки.
+  // replace=true — полностью заменяем каталог; false — мерджим по имени
+  // (новые добавляем, существующие не трогаем, чтобы не сбить defaultAmount/Unit).
+  Future<List<Product>> importProductsFromJsonString(
+    String jsonString, {
+    required List<Product> current,
+    required bool replace,
+  }) async {
+    final decoded = jsonDecode(jsonString);
+    if (decoded is! List) {
+      throw const FormatException('Ожидался JSON-массив продуктов');
+    }
+    final imported = decoded
+        .map((e) => Product.fromJson(e as Map<String, dynamic>))
+        .toList();
+    if (replace) {
+      return imported;
+    }
+    final existingNames =
+        current.map((p) => p.name.trim().toLowerCase()).toSet();
+    final existingIds = current.map((p) => p.id).toSet();
+    final toAdd = <Product>[];
+    for (final p in imported) {
+      final key = p.name.trim().toLowerCase();
+      if (existingNames.contains(key)) continue; // уже есть
+      if (existingIds.contains(p.id)) {
+        p.id = '${p.id}_${DateTime.now().microsecondsSinceEpoch}';
+      }
+      toAdd.add(p);
+    }
+    return [...current, ...toAdd];
+  }
 }

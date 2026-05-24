@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../models/product.dart';
 import '../models/ingredient.dart';
@@ -58,6 +61,81 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
+  Future<void> _exportProducts() async {
+    if (_products.isEmpty) {
+      _showSnack('Каталог пуст — нечего экспортировать');
+      return;
+    }
+    try {
+      final file = await _storage.writeProductsExportFile(_products);
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Экспорт продуктов',
+        text: 'Каталог продуктов',
+      );
+    } catch (e) {
+      _showSnack('Ошибка экспорта: $e');
+    }
+  }
+
+  Future<void> _importProducts() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result == null || result.files.single.path == null) return;
+
+      if (!mounted) return;
+      final mode = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Импорт продуктов'),
+          content: const Text(
+              'Заменить текущий каталог импортированным или добавить к существующим?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'merge'),
+              child: const Text('Добавить'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'replace'),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Заменить'),
+            ),
+          ],
+        ),
+      );
+      if (mode == null) return;
+
+      final file = File(result.files.single.path!);
+      final content = await file.readAsString();
+      final newList = await _storage.importProductsFromJsonString(
+        content,
+        current: _products,
+        replace: mode == 'replace',
+      );
+      newList.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _products = newList;
+      await _save();
+      if (!mounted) return;
+      setState(() {});
+      _showSnack('В каталоге продуктов: ${newList.length}');
+    } catch (e) {
+      _showSnack('Ошибка импорта: $e');
+    }
+  }
+
+  void _showSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   Future<void> _deleteProduct(Product product) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -88,6 +166,31 @@ class _ProductsScreenState extends State<ProductsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Список продуктов'),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'export') _exportProducts();
+              if (value == 'import') _importProducts();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'export',
+                child: ListTile(
+                  leading: Icon(Icons.upload_file),
+                  title: Text('Экспорт в JSON'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'import',
+                child: ListTile(
+                  leading: Icon(Icons.download),
+                  title: Text('Импорт из JSON'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

@@ -191,32 +191,6 @@ class _CartScreenState extends State<CartScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Корзина покупок'),
-        actions: [
-          if (_entries.isNotEmpty)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                if (value == 'select_all') _toggleAll(true);
-                if (value == 'deselect_all') _toggleAll(false);
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'select_all',
-                  child: ListTile(
-                    leading: Icon(Icons.check_box),
-                    title: Text('Выбрать все'),
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'deselect_all',
-                  child: ListTile(
-                    leading: Icon(Icons.check_box_outline_blank),
-                    title: Text('Снять все'),
-                  ),
-                ),
-              ],
-            ),
-        ],
       ),
       body: _entries.isEmpty
           ? const Center(
@@ -330,28 +304,65 @@ class _CartScreenState extends State<CartScreen> {
     final label = dishesCount == 1
         ? 'Для блюда: ${widget.dishes.first.name}'
         : 'Выбрано блюд: $dishesCount';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Colors.orange.shade50,
-      child: Row(
-        children: [
-          Icon(Icons.shopping_cart, color: Colors.orange.shade700),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.orange.shade900,
-                fontWeight: FontWeight.w500,
+
+    final checkedCount = _entries.where((e) => e.checked).length;
+    final allChecked =
+        _entries.isNotEmpty && checkedCount == _entries.length;
+    final noneChecked = checkedCount == 0;
+    // tri-state: null = частично выбрано
+    final bool? masterValue =
+        allChecked ? true : (noneChecked ? false : null);
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          color: Colors.orange.shade50,
+          child: Row(
+            children: [
+              Icon(Icons.shopping_cart, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.orange.shade900,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            ],
+          ),
+        ),
+        if (_entries.isNotEmpty)
+          InkWell(
+            onTap: () => _toggleAll(!allChecked),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  Checkbox(
+                    tristate: true,
+                    value: masterValue,
+                    onChanged: (_) => _toggleAll(!allChecked),
+                  ),
+                  Text(
+                    allChecked ? 'Снять все' : 'Выбрать все',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
