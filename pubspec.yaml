@@ -1,0 +1,42 @@
+name: dishes_app
+description: Приложение для хранения блюд и их ингредиентов
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.6.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.5
+  # Локальное хранение данных
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.1
+  path: ^1.8.3
+  # Уникальные идентификаторы
+  uuid: ^4.2.1
+  # Работа с изображениями
+  image_picker: ^1.0.4
+  # Шаринг через мессенджеры
+  share_plus: ^7.2.1
+  # Для XFile при шаринге
+  cross_file: ^0.3.3+8
+  # Выбор файлов для импорта/экспорта
+  file_picker: ^11.0.2
+
+dev_dependencies:
+  # Генератор иконок приложения под разные размеры
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/icon.png"
+
+flutter:
+  uses-material-design: true

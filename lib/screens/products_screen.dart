@@ -1,0 +1,307 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:uuid/uuid.dart';
+import '../models/product.dart';
+import '../models/ingredient.dart';
+import '../services/storage_service.dart';
+
+class ProductsScreen extends StatefulWidget {
+  const ProductsScreen({super.key});
+
+  @override
+  State<ProductsScreen> createState() => _ProductsScreenState();
+}
+
+class _ProductsScreenState extends State<ProductsScreen> {
+  final StorageService _storage = StorageService();
+  List<Product> _products = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final list = await _storage.loadProducts();
+    if (!mounted) return;
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    setState(() {
+      _products = list;
+      _loading = false;
+    });
+  }
+
+  Future<void> _save() async {
+    await _storage.saveProducts(_products);
+  }
+
+  Future<void> _addProduct() async {
+    final result = await showProductEditDialog(context);
+    if (result == null) return;
+    _products.add(result);
+    _products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    await _save();
+    setState(() {});
+  }
+
+  Future<void> _editProduct(Product product) async {
+    final result = await showProductEditDialog(context, product: product);
+    if (result == null) return;
+    final idx = _products.indexWhere((p) => p.id == result.id);
+    if (idx != -1) {
+      _products[idx] = result;
+      _products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      await _save();
+      setState(() {});
+    }
+  }
+
+  Future<void> _deleteProduct(Product product) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить продукт?'),
+        content: Text('Продукт «${product.name}» будет удалён из каталога.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    _products.removeWhere((p) => p.id == product.id);
+    await _save();
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Список продуктов'),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _products.isEmpty
+              ? _buildEmpty()
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
+                  itemCount: _products.length,
+                  itemBuilder: (context, index) {
+                    final p = _products[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.orange.shade100,
+                          child: Icon(Icons.shopping_basket,
+                              color: Colors.orange.shade700),
+                        ),
+                        title: Text(
+                          p.name,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        subtitle: Text(
+                            'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
+                          onPressed: () => _deleteProduct(p),
+                        ),
+                        onTap: () => _editProduct(p),
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addProduct,
+        icon: const Icon(Icons.add),
+        label: const Text('Добавить продукт'),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shopping_basket,
+                size: 96, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text(
+              'Каталог продуктов пуст',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Добавляйте часто используемые продукты, чтобы быстро подставлять их в блюда',
+              style: TextStyle(color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmt(double v) {
+    if (v == v.truncateToDouble()) {
+      return v.toInt().toString();
+    }
+    return v.toStringAsFixed(2)
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
+  }
+}
+
+// Диалог для добавления/редактирования продукта.
+// Возвращает Product при сохранении или null при отмене.
+Future<Product?> showProductEditDialog(
+  BuildContext context, {
+  Product? product,
+}) {
+  return showDialog<Product>(
+    context: context,
+    builder: (ctx) => _ProductEditDialog(product: product),
+  );
+}
+
+class _ProductEditDialog extends StatefulWidget {
+  final Product? product;
+  const _ProductEditDialog({this.product});
+
+  @override
+  State<_ProductEditDialog> createState() => _ProductEditDialogState();
+}
+
+class _ProductEditDialogState extends State<_ProductEditDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _amountCtrl;
+  late String _unit;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.product;
+    _nameCtrl = TextEditingController(text: p?.name ?? '');
+    _amountCtrl = TextEditingController(
+      text: p == null ? '100' : _ProductsScreenState._fmt(p.defaultAmount),
+    );
+    _unit = p?.defaultUnit ?? 'г';
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final name = _nameCtrl.text.trim();
+    final amountText = _amountCtrl.text.trim().replaceAll(',', '.');
+    final amount = double.tryParse(amountText) ?? 100;
+    final product = Product(
+      id: widget.product?.id ?? const Uuid().v4(),
+      name: name,
+      defaultAmount: amount,
+      defaultUnit: _unit,
+    );
+    Navigator.pop(context, product);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.product != null;
+    return AlertDialog(
+      title: Text(isEdit ? 'Изменить продукт' : 'Новый продукт'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Название *',
+                isDense: true,
+              ),
+              autofocus: !isEdit,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Введите название' : null,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextFormField(
+                    controller: _amountCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'По умолчанию',
+                      isDense: true,
+                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    validator: (v) {
+                      final t = (v ?? '').trim().replaceAll(',', '.');
+                      if (t.isEmpty) return 'Введите';
+                      final num = double.tryParse(t);
+                      if (num == null || num <= 0) return '> 0';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _unit,
+                    decoration: const InputDecoration(
+                      labelText: 'Ед.',
+                      isDense: true,
+                    ),
+                    items: Ingredient.allUnits
+                        .map((u) =>
+                            DropdownMenuItem(value: u, child: Text(u)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _unit = v);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Сохранить'),
+        ),
+      ],
+    );
+  }
+}
