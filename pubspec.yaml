@@ -33,10 +33,13 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
+  # Legacy-иконка (Android < 8 и старые лаунчеры) — полная квадратная картинка
   image_path: "assets/icon/icon.png"
   min_sdk_android: 21
+  # Адаптивная иконка (Android 8+): фон + foreground с safe-zone (~66%),
+  # чтобы лого не обрезалось маской лаунчера
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/icon.png"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
 
 flutter:
   uses-material-design: true
