@@ -7,6 +7,12 @@ on:
   # Возможность запустить руками из вкладки Actions
   workflow_dispatch:
 
+# Заранее опт-инимся на Node.js 24 для JS-actions. С 2026-06-02 GitHub форсит
+# переход, после 2026-09-16 Node 20 удалят с раннеров — без этого флага будет
+# warning, а потом и поломка.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Права, нужные actions/deploy-pages@v4
 permissions:
   contents: read
