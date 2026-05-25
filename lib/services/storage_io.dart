@@ -129,6 +129,22 @@ class StorageService {
     if (decoded is! List) {
       throw const FormatException('Ожидался JSON-массив блюд');
     }
+    // Сначала валидируем формат: если первый элемент похож на продукт (есть
+    // defaultUnit/defaultAmount, нет ingredients) — пользователь явно
+    // перепутал кнопку импорта.
+    if (decoded.isNotEmpty) {
+      final first = decoded.first;
+      if (first is Map<String, dynamic>) {
+        final looksLikeProduct = first.containsKey('defaultUnit') ||
+            first.containsKey('defaultAmount');
+        final hasIngredients = first.containsKey('ingredients');
+        if (looksLikeProduct && !hasIngredients) {
+          throw const FormatException(
+              'Похоже, это файл каталога продуктов, а не блюд. '
+              'Импортируйте его через «Список продуктов» → меню → Импорт.');
+        }
+      }
+    }
     final imported = decoded
         .map((e) => Dish.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -157,6 +173,15 @@ class StorageService {
     final decoded = jsonDecode(jsonString);
     if (decoded is! List) {
       throw const FormatException('Ожидался JSON-массив продуктов');
+    }
+    // Симметрично: если первый элемент явно похож на блюдо — это не сюда.
+    if (decoded.isNotEmpty) {
+      final first = decoded.first;
+      if (first is Map<String, dynamic> && first.containsKey('ingredients')) {
+        throw const FormatException(
+            'Похоже, это файл блюд, а не каталога продуктов. '
+            'Импортируйте его на главном экране → меню → Импорт.');
+      }
     }
     final imported = decoded
         .map((e) => Product.fromJson(e as Map<String, dynamic>))

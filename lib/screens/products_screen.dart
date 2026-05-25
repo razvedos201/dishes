@@ -182,14 +182,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 value: 'export',
                 child: ListTile(
                   leading: Icon(Icons.upload_file),
-                  title: Text('Экспорт в JSON'),
+                  title: Text('Экспорт продуктов в файл'),
                 ),
               ),
               PopupMenuItem(
                 value: 'import',
                 child: ListTile(
                   leading: Icon(Icons.download),
-                  title: Text('Импорт из JSON'),
+                  title: Text('Импорт файла с продуктами'),
                 ),
               ),
             ],
