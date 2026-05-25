@@ -1,7 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'screens/home_screen.dart';
+import 'services/storage_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // На первом запуске подгружаем встроенный каталог продуктов из assets.
+  // Если пользователь уже создал свой каталог — не трогаем (см. флаг внутри).
+  try {
+    final defaultJson =
+        await rootBundle.loadString('assets/default_products.json');
+    await StorageService().initializeDefaultProductsIfNeeded(defaultJson);
+  } catch (e) {
+    // Не критично: если asset не загрузится, приложение просто стартует
+    // с пустым каталогом и пользователь добавит продукты сам.
+    // ignore: avoid_print
+    print('Не удалось загрузить дефолтный каталог продуктов: $e');
+  }
   runApp(const DishesApp());
 }
 

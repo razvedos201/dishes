@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cross_file/cross_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/dish.dart';
 import '../models/product.dart';
 
@@ -76,6 +77,26 @@ class StorageService {
     final file = await _productsFile;
     final data = products.map((p) => p.toJson()).toList();
     await file.writeAsString(jsonEncode(data));
+  }
+
+  // Однократно (на первый запуск) подгружает встроенный каталог продуктов.
+  // Если у пользователя уже есть продукты — ничего не меняем, только выставляем
+  // флаг, чтобы больше не пытаться. Версионируем флаг (v1) на случай, если
+  // в будущем понадобится принудительно перезалить дефолты.
+  Future<void> initializeDefaultProductsIfNeeded(
+      String defaultProductsJson) async {
+    final prefs = await SharedPreferences.getInstance();
+    const flagKey = 'default_products_loaded_v1';
+    if (prefs.getBool(flagKey) == true) return;
+    final current = await loadProducts();
+    if (current.isEmpty) {
+      final decoded = jsonDecode(defaultProductsJson) as List<dynamic>;
+      final products = decoded
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList();
+      await saveProducts(products);
+    }
+    await prefs.setBool(flagKey, true);
   }
 
   // Сохранение картинки в локальное хранилище приложения.

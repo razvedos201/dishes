@@ -60,6 +60,26 @@ class StorageService {
     await prefs.setString(_productsKey, jsonEncode(data));
   }
 
+  // Однократно (на первый запуск) подгружает встроенный каталог продуктов.
+  // Если у пользователя уже есть продукты — ничего не меняем, только выставляем
+  // флаг, чтобы больше не пытаться. Версионируем флаг (v1) на случай, если
+  // в будущем понадобится принудительно перезалить дефолты.
+  Future<void> initializeDefaultProductsIfNeeded(
+      String defaultProductsJson) async {
+    final prefs = await SharedPreferences.getInstance();
+    const flagKey = 'default_products_loaded_v1';
+    if (prefs.getBool(flagKey) == true) return;
+    final current = await loadProducts();
+    if (current.isEmpty) {
+      final decoded = jsonDecode(defaultProductsJson) as List<dynamic>;
+      final products = decoded
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList();
+      await saveProducts(products);
+    }
+    await prefs.setBool(flagKey, true);
+  }
+
   // На вебе картинки не поддерживаются. UI image_picker скрыт, но метод
   // должен быть в API, чтобы код компилировался.
   Future<String> saveImage(XFile source) async {
