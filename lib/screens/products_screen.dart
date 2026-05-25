@@ -1,12 +1,12 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../models/product.dart';
 import '../models/ingredient.dart';
 import '../services/storage_service.dart';
+import '../utils/json_export.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -67,9 +67,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
       return;
     }
     try {
-      final file = await _storage.writeProductsExportFile(_products);
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      final json = _storage.exportProductsJson(_products);
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      await shareOrDownloadJson(
+        jsonContent: json,
+        filename: 'products_export_$ts.json',
         subject: 'Экспорт продуктов',
         text: 'Каталог продуктов',
       );
@@ -83,8 +85,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
+        withData: true,
       );
-      if (result == null || result.files.single.path == null) return;
+      if (result == null) return;
+      final bytes = result.files.single.bytes;
+      if (bytes == null) return;
 
       if (!mounted) return;
       final mode = await showDialog<String>(
@@ -112,9 +117,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
       );
       if (mode == null) return;
 
-      final file = File(result.files.single.path!);
-      final content = await file.readAsString();
-      final newList = await _storage.importProductsFromJsonString(
+      final content = utf8.decode(bytes);
+      final newList = await _storage.importProductsFromJson(
         content,
         current: _products,
         replace: mode == 'replace',

@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/dish.dart';
+import '../utils/local_image.dart';
 
 class DishDetailScreen extends StatelessWidget {
   final Dish dish;
@@ -17,9 +17,10 @@ class DishDetailScreen extends StatelessWidget {
 
   Future<void> _share() async {
     final text = dish.toShareText();
-    if (dish.imagePath != null && File(dish.imagePath!).existsSync()) {
+    final imagePath = localImagePathForShare(dish.imagePath);
+    if (imagePath != null) {
       await Share.shareXFiles(
-        [XFile(dish.imagePath!)],
+        [XFile(imagePath)],
         text: text,
         subject: 'Блюдо: ${dish.name}',
       );
@@ -30,8 +31,7 @@ class DishDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage =
-        dish.imagePath != null && File(dish.imagePath!).existsSync();
+    final hasImage = hasLocalImage(dish.imagePath);
     // Подсчёт общей стоимости
     double total = 0;
     bool hasAnyPrice = false;
@@ -63,7 +63,7 @@ class DishDetailScreen extends StatelessWidget {
           if (hasImage)
             AspectRatio(
               aspectRatio: 16 / 10,
-              child: Image.file(File(dish.imagePath!), fit: BoxFit.cover),
+              child: buildLocalImage(dish.imagePath!, fit: BoxFit.cover),
             )
           else
             Container(

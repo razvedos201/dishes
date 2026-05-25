@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +7,7 @@ import '../models/dish.dart';
 import '../models/ingredient.dart';
 import '../models/product.dart';
 import '../services/storage_service.dart';
+import '../utils/local_image.dart';
 import '../widgets/product_picker_sheet.dart';
 
 class DishEditScreen extends StatefulWidget {
@@ -104,7 +105,7 @@ class _DishEditScreenState extends State<DishEditScreen> {
         maxWidth: 1600,
       );
       if (picked == null) return;
-      final saved = await _storage.saveImage(File(picked.path));
+      final saved = await _storage.saveImage(picked);
       setState(() {
         // Если уже была картинка — запомним для удаления при сохранении
         if (_imagePath != null && _imagePath != saved) {
@@ -244,8 +245,11 @@ class _DishEditScreenState extends State<DishEditScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _buildImagePicker(),
-            const SizedBox(height: 16),
+            // На вебе картинки не поддерживаются — скрываем блок целиком.
+            if (!kIsWeb) ...[
+              _buildImagePicker(),
+              const SizedBox(height: 16),
+            ],
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -305,13 +309,13 @@ class _DishEditScreenState extends State<DishEditScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: _imagePath != null && File(_imagePath!).existsSync()
+          child: hasLocalImage(_imagePath)
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Image.file(File(_imagePath!), fit: BoxFit.cover),
+                      buildLocalImage(_imagePath!, fit: BoxFit.cover),
                       Positioned(
                         right: 8,
                         bottom: 8,

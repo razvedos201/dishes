@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -6,6 +5,7 @@ import '../models/dish.dart';
 import '../models/ingredient.dart';
 import '../models/product.dart';
 import '../services/storage_service.dart';
+import '../utils/local_image.dart';
 import '../widgets/product_picker_sheet.dart';
 
 class _CartEntry {
@@ -161,12 +161,13 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
     final text = _buildShareText();
-    // Картинку отправляем только если выбрано ровно одно блюдо
+    // Картинку отправляем только если выбрано ровно одно блюдо (и она вообще
+    // существует — на вебе картинок нет, localImagePathForShare всегда вернёт null).
     if (widget.dishes.length == 1) {
-      final dish = widget.dishes.first;
-      if (dish.imagePath != null && File(dish.imagePath!).existsSync()) {
+      final imagePath = localImagePathForShare(widget.dishes.first.imagePath);
+      if (imagePath != null) {
         await Share.shareXFiles(
-          [XFile(dish.imagePath!)],
+          [XFile(imagePath)],
           text: text,
           subject: 'Список покупок',
         );

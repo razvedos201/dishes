@@ -1,9 +1,10 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/dish.dart';
 import '../services/storage_service.dart';
+import '../utils/local_image.dart';
+import '../utils/json_export.dart';
 import 'dish_edit_screen.dart';
 import 'dish_detail_screen.dart';
 import 'cart_screen.dart';
@@ -186,9 +187,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     try {
-      final file = await _storage.writeExportFile(_dishes);
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      final json = _storage.exportDishesJson(_dishes);
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      await shareOrDownloadJson(
+        jsonContent: json,
+        filename: 'dishes_export_$ts.json',
         subject: 'Экспорт блюд',
         text: 'Файл с моими блюдами',
       );
@@ -199,13 +202,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _importAll() async {
     try {
+      // withData: true — чтобы байты загрузились в память на любой платформе
+      // (на web `path` всегда null, читать нужно через bytes).
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
+        withData: true,
       );
-      if (result == null || result.files.single.path == null) return;
+      if (result == null) return;
+      final bytes = result.files.single.bytes;
+      if (bytes == null) return;
 
-      // Спрашиваем как импортировать
       if (!mounted) return;
       final mode = await showDialog<String>(
         context: context,
@@ -232,9 +239,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       if (mode == null) return;
 
-      final file = File(result.files.single.path!);
-      final content = await file.readAsString();
-      final newList = await _storage.importFromJsonString(
+      final content = utf8.decode(bytes);
+      final newList = await _storage.importDishesFromJson(
         content,
         current: _dishes,
         replace: mode == 'replace',
@@ -447,11 +453,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildThumb(Dish dish) {
-    if (dish.imagePath != null && File(dish.imagePath!).existsSync()) {
+    if (hasLocalImage(dish.imagePath)) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.file(
-          File(dish.imagePath!),
+        child: buildLocalImage(
+          dish.imagePath!,
           width: 64,
           height: 64,
           fit: BoxFit.cover,
