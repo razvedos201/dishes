@@ -40,6 +40,12 @@ flutter_launcher_icons:
   # чтобы лого не обрезалось маской лаунчера
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  # PWA-иконки для web/icons/* и favicon.png (иначе будет дефолтная иконка Flutter)
+  web:
+    generate: true
+    image_path: "assets/icon/icon.png"
+    background_color: "#FFFFFF"
+    theme_color: "#FF9800"
 
 flutter:
   uses-material-design: true
