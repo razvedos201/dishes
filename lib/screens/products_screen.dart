@@ -218,7 +218,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
                         subtitle: Text(
-                            'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit}'),
+                          p.defaultPrice != null
+                              ? 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit} • ${_fmt(p.defaultPrice!)} ₽'
+                              : 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit}',
+                        ),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline,
                               color: Colors.red),
@@ -297,6 +300,7 @@ class _ProductEditDialogState extends State<_ProductEditDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _amountCtrl;
+  late final TextEditingController _priceCtrl;
   late String _unit;
 
   @override
@@ -307,6 +311,11 @@ class _ProductEditDialogState extends State<_ProductEditDialog> {
     _amountCtrl = TextEditingController(
       text: p == null ? '100' : _ProductsScreenState._fmt(p.defaultAmount),
     );
+    _priceCtrl = TextEditingController(
+      text: p?.defaultPrice != null
+          ? _ProductsScreenState._fmt(p!.defaultPrice!)
+          : '',
+    );
     _unit = p?.defaultUnit ?? 'г';
   }
 
@@ -314,6 +323,7 @@ class _ProductEditDialogState extends State<_ProductEditDialog> {
   void dispose() {
     _nameCtrl.dispose();
     _amountCtrl.dispose();
+    _priceCtrl.dispose();
     super.dispose();
   }
 
@@ -322,11 +332,14 @@ class _ProductEditDialogState extends State<_ProductEditDialog> {
     final name = _nameCtrl.text.trim();
     final amountText = _amountCtrl.text.trim().replaceAll(',', '.');
     final amount = double.tryParse(amountText) ?? 100;
+    final priceText = _priceCtrl.text.trim().replaceAll(',', '.');
+    final price = priceText.isEmpty ? null : double.tryParse(priceText);
     final product = Product(
       id: widget.product?.id ?? const Uuid().v4(),
       name: name,
       defaultAmount: amount,
       defaultUnit: _unit,
+      defaultPrice: price,
     );
     Navigator.pop(context, product);
   }
@@ -394,6 +407,20 @@ class _ProductEditDialogState extends State<_ProductEditDialog> {
                     },
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _priceCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Стоимость (необязательно)',
+                isDense: true,
+                suffixText: '₽',
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
               ],
             ),
           ],

@@ -12,13 +12,30 @@ class _CartEntry {
   final String name;
   double amount; // в базовой единице семейства (г для mass, мл для volume, иначе как есть)
   final String baseUnit;
+  // Совокупная стоимость по этой строке. null означает, что цена неизвестна
+  // (ни один из источников не имел цены).
+  double? totalPrice;
+  // true, если у всех источников этой строки была цена. false означает,
+  // что часть стоимости неизвестна и итоговая сумма приблизительна.
+  bool priceComplete;
   bool checked = true;
 
   _CartEntry({
     required this.name,
     required this.amount,
     required this.baseUnit,
-  });
+  })  : totalPrice = null,
+        priceComplete = true;
+
+  // Учёт ещё одного источника (ингредиента или ручной строки) в этой записи.
+  // Если цена не указана — фиксируем, что итог неточный.
+  void addPrice(double? price) {
+    if (price != null) {
+      totalPrice = (totalPrice ?? 0) + price;
+    } else {
+      priceComplete = false;
+    }
+  }
 
   // Отображаем количество с автоконвертацией г→кг и мл→л
   String get amountDisplay {
@@ -29,6 +46,13 @@ class _CartEntry {
       return '${_fmt(amount / 1000)} л';
     }
     return '${_fmt(amount)} $baseUnit';
+  }
+
+  // Цена строкой для UI/шаринга. null, если по этой позиции цены нет вовсе.
+  String? get priceDisplay {
+    if (totalPrice == null) return null;
+    final prefix = priceComplete ? '' : '~';
+    return '$prefix${_fmt(totalPrice!)} ₽';
   }
 
   static String _fmt(double v) {
@@ -91,13 +115,16 @@ class _CartScreenState extends State<CartScreen> {
           Ingredient.unitFamily(e.baseUnit) == family);
       if (idx != -1) {
         _entries[idx].amount += baseValue;
+        _entries[idx].addPrice(item.price);
         _entries[idx].checked = true;
       } else {
-        _entries.add(_CartEntry(
+        final entry = _CartEntry(
           name: cleanName,
           amount: baseValue,
           baseUnit: Ingredient.baseUnitOf(family),
-        ));
+        );
+        entry.addPrice(item.price);
+        _entries.add(entry);
         _entries.sort(
             (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       }
@@ -106,6 +133,8 @@ class _CartScreenState extends State<CartScreen> {
 
   // Объединяем одноимённые ингредиенты, суммируя количество в пределах семейства единиц.
   // Разные семейства (например г и шт) остаются отдельными строками.
+  // Цены тоже складываются: если хотя бы у одного источника цены нет, итоговая
+  // стоимость по строке помечается как приблизительная.
   List<_CartEntry> _mergeIngredients(List<Dish> dishes) {
     final Map<String, _CartEntry> map = {};
     for (final dish in dishes) {
@@ -115,21 +144,50 @@ class _CartScreenState extends State<CartScreen> {
         final family = Ingredient.unitFamily(ing.unit);
         final key = '${cleanName.toLowerCase()}|$family';
         final baseValue = Ingredient.toBase(ing.weight, ing.unit);
-        final existing = map[key];
-        if (existing != null) {
-          existing.amount += baseValue;
+        var entry = map[key];
+        if (entry != null) {
+          entry.amount += baseValue;
         } else {
-          map[key] = _CartEntry(
+          entry = _CartEntry(
             name: cleanName,
             amount: baseValue,
             baseUnit: Ingredient.baseUnitOf(family),
           );
+          map[key] = entry;
         }
+        entry.addPrice(ing.price);
       }
     }
     final list = map.values.toList();
     list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return list;
+  }
+
+  // Сумма стоимости отмеченных позиций корзины и флаг точности (если у части
+  // позиций цена неизвестна — общий итог считается приблизительным).
+  ({double total, bool complete, bool anyPriced}) _checkedTotal() {
+    double sum = 0;
+    bool complete = true;
+    bool anyPriced = false;
+    for (final e in _entries) {
+      if (!e.checked) continue;
+      if (e.totalPrice != null) {
+        sum += e.totalPrice!;
+        anyPriced = true;
+        if (!e.priceComplete) complete = false;
+      } else {
+        // у этой позиции вообще нет цены — значит, точную сумму не назвать
+        complete = false;
+      }
+    }
+    return (total: sum, complete: complete, anyPriced: anyPriced);
+  }
+
+  static String _fmtMoney(double v) {
+    if (v == v.truncateToDouble()) return v.toInt().toString();
+    return v.toStringAsFixed(2)
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
   }
 
   String _buildShareText() {
@@ -147,7 +205,15 @@ class _CartScreenState extends State<CartScreen> {
     buffer.writeln('');
     buffer.writeln('📝 Нужно купить:');
     for (final entry in needed) {
-      buffer.writeln('• ${entry.name} — ${entry.amountDisplay}');
+      final price = entry.priceDisplay;
+      final priceSuffix = price != null ? ' — $price' : '';
+      buffer.writeln('• ${entry.name} — ${entry.amountDisplay}$priceSuffix');
+    }
+    final totals = _checkedTotal();
+    if (totals.anyPriced) {
+      buffer.writeln('');
+      final prefix = totals.complete ? 'Итого' : 'Примерно';
+      buffer.writeln('💰 $prefix: ${_fmtMoney(totals.total)} ₽');
     }
     return buffer.toString();
   }
@@ -188,6 +254,7 @@ class _CartScreenState extends State<CartScreen> {
   @override
   Widget build(BuildContext context) {
     final checkedCount = _entries.where((e) => e.checked).length;
+    final totals = _checkedTotal();
 
     return Scaffold(
       appBar: AppBar(
@@ -249,7 +316,9 @@ class _CartScreenState extends State<CartScreen> {
                             ),
                           ),
                           subtitle: Text(
-                            entry.amountDisplay,
+                            entry.priceDisplay != null
+                                ? '${entry.amountDisplay} • ${entry.priceDisplay}'
+                                : entry.amountDisplay,
                             style: TextStyle(
                               color: entry.checked
                                   ? null
@@ -279,12 +348,29 @@ class _CartScreenState extends State<CartScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'К покупке: $checkedCount из ${_entries.length}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'К покупке: $checkedCount из ${_entries.length}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (totals.anyPriced) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${totals.complete ? "Сумма" : "Примерно"}: ${_fmtMoney(totals.total)} ₽',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -373,7 +459,13 @@ class _NewCartItem {
   final String name;
   final double amount;
   final String unit;
-  _NewCartItem({required this.name, required this.amount, required this.unit});
+  final double? price; // стоимость не обязательна
+  _NewCartItem({
+    required this.name,
+    required this.amount,
+    required this.unit,
+    this.price,
+  });
 }
 
 class _AddCartItemDialog extends StatefulWidget {
@@ -388,12 +480,14 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _amountCtrl = TextEditingController(text: '1');
+  final _priceCtrl = TextEditingController();
   String _unit = 'шт';
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _amountCtrl.dispose();
+    _priceCtrl.dispose();
     super.dispose();
   }
 
@@ -416,6 +510,10 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
       _nameCtrl.text = picked.name;
       _amountCtrl.text = _fmt(picked.defaultAmount);
       _unit = picked.defaultUnit;
+      // Если в каталоге задана цена — подставляем; иначе оставляем поле как есть.
+      if (picked.defaultPrice != null) {
+        _priceCtrl.text = _fmt(picked.defaultPrice!);
+      }
     });
   }
 
@@ -423,12 +521,15 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
     if (!_formKey.currentState!.validate()) return;
     final amount =
         double.tryParse(_amountCtrl.text.trim().replaceAll(',', '.')) ?? 0;
+    final priceText = _priceCtrl.text.trim().replaceAll(',', '.');
+    final price = priceText.isEmpty ? null : double.tryParse(priceText);
     Navigator.pop(
       context,
       _NewCartItem(
         name: _nameCtrl.text.trim(),
         amount: amount,
         unit: _unit,
+        price: price,
       ),
     );
   }
@@ -507,6 +608,20 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
                     },
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _priceCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Стоимость (необязательно)',
+                isDense: true,
+                suffixText: '₽',
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
               ],
             ),
           ],

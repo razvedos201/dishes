@@ -97,7 +97,10 @@ class _ProductPickerSheetState extends State<ProductPickerSheet> {
                           ),
                           title: Text(p.name),
                           subtitle: Text(
-                              '${_formatNum(p.defaultAmount)} ${p.defaultUnit}'),
+                            p.defaultPrice != null
+                                ? '${_formatNum(p.defaultAmount)} ${p.defaultUnit} • ${_formatNum(p.defaultPrice!)} ₽'
+                                : '${_formatNum(p.defaultAmount)} ${p.defaultUnit}',
+                          ),
                           onTap: () => Navigator.pop(context, p),
                         );
                       },

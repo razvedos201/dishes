@@ -75,6 +75,12 @@ class _DishEditScreenState extends State<DishEditScreen> {
       f.nameCtrl.text = picked.name;
       f.weightCtrl.text = _fmt(picked.defaultAmount);
       f.unit = picked.defaultUnit;
+      // Подставляем цену из каталога, если она там указана.
+      // Если в каталоге цены нет — оставляем поле как было,
+      // чтобы не затереть уже введённую вручную стоимость.
+      if (picked.defaultPrice != null) {
+        f.priceCtrl.text = _fmt(picked.defaultPrice!);
+      }
     });
   }
 
