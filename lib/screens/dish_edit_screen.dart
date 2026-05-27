@@ -75,13 +75,18 @@ class _DishEditScreenState extends State<DishEditScreen> {
       f.nameCtrl.text = picked.name;
       f.weightCtrl.text = _fmt(picked.defaultAmount);
       f.unit = picked.defaultUnit;
-      // Подставляем цену из каталога, если она там указана.
-      // Если в каталоге цены нет — оставляем поле как было,
-      // чтобы не затереть уже введённую вручную стоимость.
-      if (picked.defaultPrice != null) {
-        f.priceCtrl.text = _fmt(picked.defaultPrice!);
-      }
     });
+  }
+
+  // Ищем продукт каталога по имени (без учёта регистра и пробелов).
+  // Нужен, чтобы при сохранении подставить актуальную цену из каталога.
+  Product? _findProduct(String name) {
+    final key = name.trim().toLowerCase();
+    if (key.isEmpty) return null;
+    for (final p in _products) {
+      if (p.name.trim().toLowerCase() == key) return p;
+    }
+    return null;
   }
 
   static String _fmt(double v) {
@@ -195,11 +200,9 @@ class _DishEditScreenState extends State<DishEditScreen> {
       if (name.isEmpty) continue;
       final amount = f.parsedAmount;
       if (amount == null || amount <= 0) continue;
-      double? price;
-      final priceText = f.priceCtrl.text.trim().replaceAll(',', '.');
-      if (priceText.isNotEmpty) {
-        price = double.tryParse(priceText);
-      }
+      // Цена берётся из каталога: цена за единицу × количество в блюде.
+      // Если продукта в каталоге нет (или у него нет цены) — стоимость пустая.
+      final price = _findProduct(name)?.costFor(amount, f.unit);
       ingredients.add(Ingredient(
         name: name,
         weight: amount,
@@ -444,20 +447,6 @@ class _DishEditScreenState extends State<DishEditScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: f.priceCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Стоимость (необязательно)',
-                isDense: true,
-                suffixText: '₽',
-              ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-              ],
-            ),
           ],
         ),
       ),
@@ -469,17 +458,14 @@ class _DishEditScreenState extends State<DishEditScreen> {
 class _IngredientForm {
   final TextEditingController nameCtrl;
   final TextEditingController weightCtrl;
-  final TextEditingController priceCtrl;
   String unit;
 
   _IngredientForm({
     String name = '',
     String weight = '',
-    String price = '',
     this.unit = 'г',
   })  : nameCtrl = TextEditingController(text: name),
-        weightCtrl = TextEditingController(text: weight),
-        priceCtrl = TextEditingController(text: price);
+        weightCtrl = TextEditingController(text: weight);
 
   factory _IngredientForm.fromIngredient(Ingredient ing) {
     final v = ing.weight;
@@ -488,7 +474,6 @@ class _IngredientForm {
     return _IngredientForm(
       name: ing.name,
       weight: weightStr,
-      price: ing.price != null ? ing.price!.toString() : '',
       unit: ing.unit,
     );
   }
@@ -503,7 +488,6 @@ class _IngredientForm {
   void dispose() {
     nameCtrl.dispose();
     weightCtrl.dispose();
-    priceCtrl.dispose();
   }
 }
 

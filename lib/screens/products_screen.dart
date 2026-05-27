@@ -286,7 +286,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ),
             subtitle: Text(
               p.defaultPrice != null
-                  ? 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit} • ${_fmt(p.defaultPrice!)} ₽'
+                  ? 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit} • ${_fmt(p.defaultPrice!)} ₽/${p.defaultUnit}'
                   : 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit}',
             ),
             trailing: IconButton(
@@ -472,8 +472,9 @@ class _ProductEditDialogState extends State<_ProductEditDialog> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _priceCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Стоимость (необязательно)',
+              decoration: InputDecoration(
+                labelText: 'Цена за 1 $_unit (необязательно)',
+                helperText: 'В блюде умножается на нужное количество',
                 isDense: true,
                 suffixText: '₽',
               ),

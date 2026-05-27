@@ -480,15 +480,23 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _amountCtrl = TextEditingController(text: '1');
-  final _priceCtrl = TextEditingController();
   String _unit = 'шт';
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _amountCtrl.dispose();
-    _priceCtrl.dispose();
     super.dispose();
+  }
+
+  // Поиск продукта каталога по имени — чтобы взять его цену.
+  Product? _findProduct(String name) {
+    final key = name.trim().toLowerCase();
+    if (key.isEmpty) return null;
+    for (final p in widget.products) {
+      if (p.name.trim().toLowerCase() == key) return p;
+    }
+    return null;
   }
 
   Future<void> _pickFromCatalog() async {
@@ -510,10 +518,6 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
       _nameCtrl.text = picked.name;
       _amountCtrl.text = _fmt(picked.defaultAmount);
       _unit = picked.defaultUnit;
-      // Если в каталоге задана цена — подставляем; иначе оставляем поле как есть.
-      if (picked.defaultPrice != null) {
-        _priceCtrl.text = _fmt(picked.defaultPrice!);
-      }
     });
   }
 
@@ -521,12 +525,14 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
     if (!_formKey.currentState!.validate()) return;
     final amount =
         double.tryParse(_amountCtrl.text.trim().replaceAll(',', '.')) ?? 0;
-    final priceText = _priceCtrl.text.trim().replaceAll(',', '.');
-    final price = priceText.isEmpty ? null : double.tryParse(priceText);
+    final name = _nameCtrl.text.trim();
+    // Цену берём из каталога: цена за единицу × количество. Если продукта в
+    // каталоге нет — позиция добавится без стоимости.
+    final price = _findProduct(name)?.costFor(amount, _unit);
     Navigator.pop(
       context,
       _NewCartItem(
-        name: _nameCtrl.text.trim(),
+        name: name,
         amount: amount,
         unit: _unit,
         price: price,
@@ -608,20 +614,6 @@ class _AddCartItemDialogState extends State<_AddCartItemDialog> {
                     },
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _priceCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Стоимость (необязательно)',
-                isDense: true,
-                suffixText: '₽',
-              ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
               ],
             ),
           ],
