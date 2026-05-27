@@ -17,8 +17,23 @@ class ProductsScreen extends StatefulWidget {
 
 class _ProductsScreenState extends State<ProductsScreen> {
   final StorageService _storage = StorageService();
+  final TextEditingController _searchCtrl = TextEditingController();
   List<Product> _products = [];
+  String _query = '';
   bool _loading = true;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // Продукты, отфильтрованные по строке поиска (по названию, без учёта регистра).
+  List<Product> get _filtered {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _products;
+    return _products.where((p) => p.name.toLowerCase().contains(q)).toList();
+  }
 
   @override
   void initState() {
@@ -200,43 +215,88 @@ class _ProductsScreenState extends State<ProductsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _products.isEmpty
               ? _buildEmpty()
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
-                  itemCount: _products.length,
-                  itemBuilder: (context, index) {
-                    final p = _products[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.orange.shade100,
-                          child: Icon(Icons.shopping_basket,
-                              color: Colors.orange.shade700),
-                        ),
-                        title: Text(
-                          p.name,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        subtitle: Text(
-                          p.defaultPrice != null
-                              ? 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit} • ${_fmt(p.defaultPrice!)} ₽'
-                              : 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit}',
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.red),
-                          onPressed: () => _deleteProduct(p),
-                        ),
-                        onTap: () => _editProduct(p),
-                      ),
-                    );
-                  },
+              : Column(
+                  children: [
+                    _buildSearchField(),
+                    Expanded(child: _buildList()),
+                  ],
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addProduct,
         icon: const Icon(Icons.add),
         label: const Text('Добавить продукт'),
       ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: TextField(
+        controller: _searchCtrl,
+        decoration: InputDecoration(
+          hintText: 'Поиск продукта...',
+          prefixIcon: const Icon(Icons.search),
+          isDense: true,
+          border: const OutlineInputBorder(),
+          suffixIcon: _query.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Очистить',
+                  onPressed: () {
+                    _searchCtrl.clear();
+                    setState(() => _query = '');
+                  },
+                ),
+        ),
+        onChanged: (v) => setState(() => _query = v),
+      ),
+    );
+  }
+
+  Widget _buildList() {
+    final items = _filtered;
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Ничего не найдено',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 96),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final p = items[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.orange.shade100,
+              child: Icon(Icons.shopping_basket, color: Colors.orange.shade700),
+            ),
+            title: Text(
+              p.name,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            subtitle: Text(
+              p.defaultPrice != null
+                  ? 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit} • ${_fmt(p.defaultPrice!)} ₽'
+                  : 'По умолчанию: ${_fmt(p.defaultAmount)} ${p.defaultUnit}',
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _deleteProduct(p),
+            ),
+            onTap: () => _editProduct(p),
+          ),
+        );
+      },
     );
   }
 
