@@ -46,15 +46,17 @@ class Dish {
       buffer.writeln('• ${ing.name} — ${ing.amountDisplay}$priceStr');
     }
     // Подсчёт общей стоимости, если у всех ингредиентов есть цена
-    final totalPrice = _calculateTotalPrice();
-    if (totalPrice != null) {
+    final total = totalPrice;
+    if (total != null) {
       buffer.writeln('');
-      buffer.writeln('💰 Итого: ${totalPrice.toStringAsFixed(2)} ₽');
+      buffer.writeln('💰 Итого: ${total.toStringAsFixed(2)} ₽');
     }
     return buffer.toString();
   }
 
-  double? _calculateTotalPrice() {
+  // Суммарная стоимость блюда. null, если ни у одного ингредиента нет цены
+  // (тогда показывать «—» не имеет смысла).
+  double? get totalPrice {
     double total = 0;
     bool hasAny = false;
     for (final ing in ingredients) {

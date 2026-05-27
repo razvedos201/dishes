@@ -434,6 +434,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           'Ингредиентов: ${dish.ingredients.length}',
                           style: TextStyle(color: Colors.grey.shade700),
                         ),
+                        if (dish.totalPrice != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '${dish.totalPrice!.toStringAsFixed(2)} ₽',
+                            style: TextStyle(
+                              color: Colors.orange.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
